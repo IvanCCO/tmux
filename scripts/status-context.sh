@@ -5,6 +5,9 @@
 # outside tmux do not create noise here.
 
 second=$(date +%S)
+now=$(date +%s)
+state_dir=${TMPDIR:-/tmp}
+state_prefix="$state_dir/tmux-ai-activity-${UID:-$(id -u)}"
 case $(expr "$second" \* 3 % 10) in
   0) pulse='⠋' ;;
   1) pulse='⠙' ;;
@@ -18,11 +21,33 @@ case $(expr "$second" \* 3 % 10) in
   9) pulse='⠏' ;;
 esac
 
-is_ai_running() {
+is_ai_title() {
   case "$1" in
     ⠋*|⠙*|⠹*|⠸*|⠼*|⠴*|⠦*|⠧*|⠇*|⠏*|✳*|✻*|✽*) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+is_ai_running() {
+  pane_id=$1
+  pane_title=$2
+  state_file="$state_prefix-${pane_id#%}"
+
+  is_ai_title "$pane_title" || return 1
+
+  if [ -r "$state_file" ]; then
+    IFS=' ' read -r changed_at previous_title < "$state_file"
+  else
+    printf '0 %s\n' "$pane_title" > "$state_file"
+    return 1
+  fi
+
+  if [ "$pane_title" != "$previous_title" ]; then
+    changed_at=$now
+    printf '%s %s\n' "$changed_at" "$pane_title" > "$state_file"
+  fi
+
+  [ "$(expr "$now" - "$changed_at")" -le 2 ]
 }
 
 classify_process() {
@@ -64,7 +89,7 @@ collect_session_activity() {
   for pane_id in $(tmux list-panes -t "$1" -F '#{pane_id}' 2>/dev/null); do
     ai_running=0
     pane_title=$(tmux display-message -p -t "$pane_id" '#{pane_title}' 2>/dev/null)
-    is_ai_running "$pane_title" && ai_running=1
+    is_ai_running "$pane_id" "$pane_title" && ai_running=1
     pane_pid=$(tmux display-message -p -t "$pane_id" '#{pane_pid}' 2>/dev/null)
     descendants=$pane_pid
     frontier=$pane_pid
