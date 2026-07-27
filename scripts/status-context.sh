@@ -4,11 +4,14 @@
 # It only inspects process trees belonging to tmux panes, so background jobs
 # outside tmux do not create noise here.
 
+ACTIVITY_GRACE_SECONDS=8
+active_session_id=$1
+
 second=$(date +%S)
 now=$(date +%s)
 state_dir=${TMPDIR:-/tmp}
 state_prefix="$state_dir/tmux-ai-activity-${UID:-$(id -u)}"
-case $(expr "$second" \* 3 % 10) in
+case $(expr "$second" % 10) in
   0) pulse='⠋' ;;
   1) pulse='⠙' ;;
   2) pulse='⠹' ;;
@@ -47,7 +50,7 @@ is_ai_running() {
     printf '%s %s\n' "$changed_at" "$pane_title" > "$state_file"
   fi
 
-  [ "$(expr "$now" - "$changed_at")" -le 2 ]
+  [ "$(expr "$now" - "$changed_at")" -le "$ACTIVITY_GRACE_SECONDS" ]
 }
 
 classify_process() {
@@ -160,7 +163,11 @@ while IFS=':' read -r session_id session_name; do
   [ "$first_session" -eq 0 ] && printf ' '
   first_session=0
 
-  printf '#[fg=#ffffff,bg=#45475a] %s ' "$session_name"
+  if [ "$session_id" = "$active_session_id" ]; then
+    printf '#[fg=#ffffff,bg=#45475a,bold] %s #[nobold]' "$session_name"
+  else
+    printf '#[fg=#ffffff,bg=#45475a] %s ' "$session_name"
+  fi
   collect_session_activity "$session_id"
   print_activity
   printf '#[default]'
