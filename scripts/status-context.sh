@@ -54,39 +54,48 @@ classify_process() {
   process=$1
   case "$process" in
     *codex*)
-      codex=1
-      [ "$ai_running" -eq 1 ] && codex_running=1
+      pane_codex=1
+      [ "$ai_running" -eq 1 ] && pane_codex_running=1
       ;;
     *claude*)
-      claude=1
-      [ "$ai_running" -eq 1 ] && claude_running=1
+      pane_claude=1
+      [ "$ai_running" -eq 1 ] && pane_claude_running=1
       ;;
     *gemini*)
-      gemini=1
-      [ "$ai_running" -eq 1 ] && gemini_running=1
+      pane_gemini=1
+      [ "$ai_running" -eq 1 ] && pane_gemini_running=1
       ;;
     *kimi*)
-      kimi=1
-      [ "$ai_running" -eq 1 ] && kimi_running=1
+      pane_kimi=1
+      [ "$ai_running" -eq 1 ] && pane_kimi_running=1
       ;;
-    *node*|*npm\ run\ *|*pnpm\ *|*yarn\ *) node=1 ;;
+    *node*|*npm\ run\ *|*pnpm\ *|*yarn\ *) pane_node=1 ;;
   esac
 }
 
 collect_session_activity() {
-  codex=0
+  codex_count=0
   codex_running=0
-  claude=0
+  claude_count=0
   claude_running=0
-  gemini=0
+  gemini_count=0
   gemini_running=0
-  kimi=0
+  kimi_count=0
   kimi_running=0
-  node=0
+  node_count=0
 
   # Codex and Claude put an animated marker in their pane title while working.
   # Keep servers visible, but only show an AI spinner when that marker is present.
   for pane_id in $(tmux list-panes -t "$1" -F '#{pane_id}' 2>/dev/null); do
+    pane_codex=0
+    pane_codex_running=0
+    pane_claude=0
+    pane_claude_running=0
+    pane_gemini=0
+    pane_gemini_running=0
+    pane_kimi=0
+    pane_kimi_running=0
+    pane_node=0
     ai_running=0
     pane_title=$(tmux display-message -p -t "$pane_id" '#{pane_title}' 2>/dev/null)
     is_ai_running "$pane_id" "$pane_title" && ai_running=1
@@ -106,39 +115,40 @@ collect_session_activity() {
     for process_id in $descendants; do
       classify_process "$(ps -p "$process_id" -o command= 2>/dev/null)"
     done
+    codex_count=$((codex_count + pane_codex))
+    claude_count=$((claude_count + pane_claude))
+    gemini_count=$((gemini_count + pane_gemini))
+    kimi_count=$((kimi_count + pane_kimi))
+    node_count=$((node_count + pane_node))
+    [ "$pane_codex_running" -eq 1 ] && codex_running=1
+    [ "$pane_claude_running" -eq 1 ] && claude_running=1
+    [ "$pane_gemini_running" -eq 1 ] && gemini_running=1
+    [ "$pane_kimi_running" -eq 1 ] && kimi_running=1
   done
 }
 
+print_badge() {
+  color=$1
+  name=$2
+  count=$3
+  running=$4
+  suffix=''
+  [ "$count" -gt 1 ] && suffix=" ($count)"
+  loading=''
+  [ "$running" -eq 1 ] && loading="$pulse "
+  [ "$printed" -eq 1 ] && printf '#[fg=#ffffff,bg=#45475a] '
+  printf '#[fg=#ffffff,bg=%s,bold] %s%s%s #[nobold]' "$color" "$loading" "$name" "$suffix"
+  printed=1
+}
+
 print_activity() {
-  if [ "$codex" -eq 1 ] || [ "$claude" -eq 1 ] || [ "$gemini" -eq 1 ] || [ "$kimi" -eq 1 ] || [ "$node" -eq 1 ]; then
+  if [ "$codex_count" -gt 0 ] || [ "$claude_count" -gt 0 ] || [ "$gemini_count" -gt 0 ] || [ "$kimi_count" -gt 0 ] || [ "$node_count" -gt 0 ]; then
     printed=0
-    if [ "$codex" -eq 1 ]; then
-      [ "$codex_running" -eq 1 ] && loading="$pulse " || loading=''
-      printf '#[fg=#ffffff,bg=#10a37f,bold] %scodex #[nobold]' "$loading"
-      printed=1
-    fi
-    if [ "$claude" -eq 1 ]; then
-      [ "$printed" -eq 1 ] && printf '#[fg=#ffffff,bg=#45475a] '
-      [ "$claude_running" -eq 1 ] && loading="$pulse " || loading=''
-      printf '#[fg=#ffffff,bg=#d97757,bold] %sclaude #[nobold]' "$loading"
-      printed=1
-    fi
-    if [ "$gemini" -eq 1 ]; then
-      [ "$printed" -eq 1 ] && printf '#[fg=#ffffff,bg=#45475a] '
-      [ "$gemini_running" -eq 1 ] && loading="$pulse " || loading=''
-      printf '#[fg=#ffffff,bg=#4285f4,bold] %sgemini #[nobold]' "$loading"
-      printed=1
-    fi
-    if [ "$kimi" -eq 1 ]; then
-      [ "$printed" -eq 1 ] && printf '#[fg=#ffffff,bg=#45475a] '
-      [ "$kimi_running" -eq 1 ] && loading="$pulse " || loading=''
-      printf '#[fg=#ffffff,bg=#7c3aed,bold] %skimi #[nobold]' "$loading"
-      printed=1
-    fi
-    if [ "$node" -eq 1 ]; then
-      [ "$printed" -eq 1 ] && printf '#[fg=#ffffff,bg=#45475a] '
-      printf '#[fg=#ffffff,bg=#68a063,bold] node #[nobold]'
-    fi
+    [ "$codex_count" -gt 0 ] && print_badge '#10a37f' codex "$codex_count" "$codex_running"
+    [ "$claude_count" -gt 0 ] && print_badge '#d97757' claude "$claude_count" "$claude_running"
+    [ "$gemini_count" -gt 0 ] && print_badge '#4285f4' gemini "$gemini_count" "$gemini_running"
+    [ "$kimi_count" -gt 0 ] && print_badge '#7c3aed' kimi "$kimi_count" "$kimi_running"
+    [ "$node_count" -gt 0 ] && print_badge '#68a063' node "$node_count" 0
   else
     printf '#[fg=#ffffff,bg=#6c7086] -- idle '
   fi
