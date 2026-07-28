@@ -49,7 +49,7 @@ draw_melt() {
   done
 
   print_centered_in_canvas "$((top + 17))" 'Step away. Drink water. Look somewhere else.' 250
-  print_centered_in_canvas "$((top + 18))" "Type ${unlock_display} and press Enter to return." 203
+  print_centered_in_canvas "$((top + 18))" 'Send lindinha a message. Type "I bite" + Enter.' 203
   print_centered_in_canvas "$((top + 19))" "> ${typed}_" 245
 }
 
