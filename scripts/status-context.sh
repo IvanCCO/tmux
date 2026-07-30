@@ -6,6 +6,7 @@
 
 ACTIVITY_GRACE_SECONDS=8
 active_session_id=$1
+show_session_numbers=$2
 
 second=$(date +%S)
 now=$(date +%s)
@@ -187,19 +188,26 @@ print_activity() {
 }
 
 first_session=1
+session_number=1
 tmux list-sessions -F '#{session_id}:#{session_name}' 2>/dev/null |
 while IFS=':' read -r session_id session_name; do
   [ "$first_session" -eq 0 ] && printf ' '
   first_session=0
 
+  session_label=$session_name
+  if [ "$show_session_numbers" = 1 ] && [ "$session_number" -le 9 ]; then
+    session_label="[$session_number] $session_name"
+  fi
+
   if [ "$session_id" = "$active_session_id" ]; then
-    printf '#[fg=#ffffff,bg=#45475a,bold] %s #[nobold]' "$session_name"
+    printf '#[range=session|%s]#[fg=#ffffff,bg=#45475a,bold] %s #[nobold]#[norange]' "$session_id" "$session_label"
   else
-    printf '#[fg=#ffffff,bg=#45475a] %s ' "$session_name"
+    printf '#[range=session|%s]#[fg=#ffffff,bg=#45475a] %s #[norange]' "$session_id" "$session_label"
   fi
   collect_session_activity "$session_id"
   print_activity
   printf '#[default]'
+  session_number=$((session_number + 1))
 done
 
 printf '#[default]'
